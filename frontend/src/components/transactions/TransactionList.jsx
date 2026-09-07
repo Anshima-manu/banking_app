@@ -38,7 +38,7 @@ export default function TransactionList({ transactions = [] }) {
               py-3
               transition
               hover:bg-slate-50
-              sm:grid-cols-[minmax(180px,1fr)_auto]
+              sm:grid-cols-[minmax(180px,1fr)_minmax(0,2fr)_auto]
             "
           >
             <div className="flex items-center gap-3">
