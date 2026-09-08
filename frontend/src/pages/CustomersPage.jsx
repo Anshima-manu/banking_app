@@ -41,6 +41,8 @@ export default function CustomersPage() {
 
   const [hasAdvancedResults, setHasAdvancedResults] = useState(false);
 
+  const [activeFilters, setActiveFilters] = useState({});
+
   const [error, setError] = useState("");
 
   const [page, setPage] = useState(1);
@@ -183,6 +185,7 @@ export default function CustomersPage() {
     setCustomers([]);
     setSearchValue("");
     setHasAdvancedResults(false);
+    setActiveFilters({});
     setError("");
 
     navigate("/customers", {

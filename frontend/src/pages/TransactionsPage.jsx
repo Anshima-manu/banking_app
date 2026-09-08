@@ -364,8 +364,8 @@ export default function TransactionsPage() {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                {results.length}{" "}
-                {results.length === 1
+                {totalAccounts}{" "}
+                {totalAccounts === 1
                   ? "Account found"
                   : "Accounts found"}
               </p>
