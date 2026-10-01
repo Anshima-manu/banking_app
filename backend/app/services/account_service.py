@@ -189,6 +189,24 @@ def create_account(
                 detail="Savings profile is not allowed for a loan account.",
             )
 
+        linked_savings_account = db.execute(
+            select(Account).where(
+                Account.account_id
+                == data.loan_profile.linked_savings_account_id,
+                Account.customer_id == customer_id,
+                Account.account_type == AccountType.SAVINGS.value,
+                Account.account_status == AccountStatus.ACTIVE.value,
+            )
+        ).scalar_one_or_none()
+
+        if linked_savings_account is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Select an active savings account belonging to this customer."
+                ),
+            )
+
     try:
         account = Account(
             customer_id=customer_id,
@@ -228,6 +246,9 @@ def create_account(
                 tenure_months=profile.tenure_months,
                 outstanding_principal=profile.principal_amount,
                 repayment_start_date=profile.repayment_start_date,
+                linked_savings_account_id=(
+                    profile.linked_savings_account_id
+                ),
             )
 
             db.add(loan_profile)

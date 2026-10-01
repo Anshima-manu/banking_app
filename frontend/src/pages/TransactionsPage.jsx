@@ -45,7 +45,6 @@ export default function TransactionsPage() {
   const [transactionLoading, setTransactionLoading] = useState(false);
 
   const [installments, setInstallments] = useState([]);
-  const [emiLoading, setEmiLoading] = useState(false);
 
   const [error, setError] = useState("");
 
@@ -108,26 +107,14 @@ export default function TransactionsPage() {
     setError("");
   }
 
-  // function openTransaction(
-  //   account,
-  //   type
-  // ) {
-  //   setSelectedAccount(account);
-  //   setTransactionType(type);
-  // }
-
   async function openTransaction(account, type) {
     if (account.account_type === "LOAN") {
       try {
-        setEmiLoading(true);
-
         const res = await client.get(
           `/accounts/${account.account_id}/installments`,
         );
 
         console.log(res.data);
-
-        // const data = res.data;
 
         const unpaid = res.data.filter(
           (inst) => inst.installment_status !== "PAID",
@@ -147,14 +134,11 @@ export default function TransactionsPage() {
         setTransactionType("EMI");
       } catch (err) {
         console.error("Error fetching installments", err);
-      } finally {
-        setEmiLoading(false);
       }
 
       return;
     }
 
-    // 👉 existing logic
     setSelectedAccount(account);
     setTransactionType(type);
   }
@@ -212,26 +196,6 @@ export default function TransactionsPage() {
       closeTransactionModal();
 
       await runSearch(searchValue);
-    } finally {
-      setTransactionLoading(false);
-    }
-  }
-
-  async function handleEmiPayment(amount) {
-    if (!selectedInstallment) return;
-
-    try {
-      setTransactionLoading(true);
-
-      await client.post(
-        `/loans/accounts/${selectedAccount.account_id}/installments/${selectedInstallment.installment_id}/pay`,
-        { amount },
-      );
-
-      closeTransactionModal();
-      await runSearch(searchValue);
-    } catch (err) {
-      console.error("EMI payment failed", err);
     } finally {
       setTransactionLoading(false);
     }
@@ -501,12 +465,7 @@ export default function TransactionsPage() {
                               gap-2
                             "
                         >
-                          {/* <p className="font-semibold text-slate-900">
-                              Savings{" "}
-                              {maskAccountNumber(
-                                account.account_number
-                              )}
-                            </p> */}
+                          
 
                           <p className="font-semibold text-slate-900">
                             {isLoan
@@ -546,35 +505,6 @@ export default function TransactionsPage() {
                       </div>
                     </div>
                   </div>
-
-                  {/* <div className="flex items-center gap-3">
-                      <Button
-                        variant="secondary"
-                        disabled={!isActive}
-                        onClick={() => {
-                          openTransaction(
-                            account,
-                            "WITHDRAWAL"
-                          );
-                        }}
-                      >
-                        <ArrowUpRight size={17} />
-                        Withdraw
-                      </Button>
-
-                      <Button
-                        disabled={!isActive}
-                        onClick={() => {
-                          openTransaction(
-                            account,
-                            "DEPOSIT"
-                          );
-                        }}
-                      >
-                        <ArrowDownLeft size={17} />
-                        Deposit
-                      </Button>
-                    </div> */}
 
                   <div className="flex items-center gap-3">
                     {isLoan ? (
@@ -667,11 +597,6 @@ export default function TransactionsPage() {
           selectedAccount !== null &&
           (transactionType !== null || selectedInstallment !== null)
         }
-        // title={
-        //   transactionType === "DEPOSIT"
-        //     ? "Deposit Funds"
-        //     : "Withdraw Funds"
-        // }
         title={
           selectedInstallment
             ? "Pay Installment"
@@ -683,14 +608,11 @@ export default function TransactionsPage() {
         }
         description={
           selectedAccount
-            ? `${selectedAccount.first_name} ${selectedAccount.last_name} • ${maskAccountNumber(
-                selectedAccount.account_number,
-              )}`
+            ? `${selectedAccount.first_name} ${selectedAccount.last_name} ${selectedAccount.account_type} ${selectedAccount.account_number}`
             : ""
         }
         onClose={closeTransactionModal}
-        // maxWidth="max-w-md"
-        maxWidth="max-w-3xl"
+        maxWidth={selectedInstallment ? "max-w-md" : "max-w-3xl"}
       >
         {selectedAccount &&
           transactionType === "EMI" &&
@@ -715,7 +637,7 @@ export default function TransactionsPage() {
   (transactionType === "DEPOSIT" ||
     transactionType === "WITHDRAWAL") && (
     <TransactionForm
-      type={transactionType}
+      transactionType={transactionType}
       loading={transactionLoading}
       onSubmit={handleTransaction}   // 🔥 THIS WAS MISSING LINK
       onCancel={closeTransactionModal}

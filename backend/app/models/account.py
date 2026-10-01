@@ -112,4 +112,10 @@ class LoanProfile(Base):
         Date,
         nullable = False,
     )
+    linked_savings_account_id: Mapped[int | None] = mapped_column(
+        BigInteger,
+        ForeignKey("accounts.account_id"),
+        nullable=True,
+        index=True,
+    )
 

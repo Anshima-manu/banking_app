@@ -21,8 +21,6 @@ export default function TransactionList({ transactions = [] }) {
       {transactions.map((transaction) => {
         const isDeposit = transaction.transaction_type === "DEPOSIT";
 
-        const isWithdrawal = transaction.transaction_type === "WITHDRAWAL";
-
         const isIncoming =
           isDeposit || transaction.transaction_type === "INTEREST_CREDIT";
 

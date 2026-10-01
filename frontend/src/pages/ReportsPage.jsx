@@ -25,10 +25,14 @@ import {
   reportPeriodOptions,
 } from "../utils/reportPeriods";
 
-import { formatCurrency, maskAccountNumber } from "../utils/formatters";
+import { formatCurrency } from "../utils/formatters";
 import CustomerReportTransactionTable from "../components/reports/CustomerReportTransactionTable";
 
 const transactionTypeOptions = [
+  {
+    value: "ALL",
+    label: "All transaction types",
+  },
   {
     value: "DEPOSIT",
     label: "Deposit",
@@ -60,7 +64,7 @@ export default function ReportsPage() {
 
   const [endDate, setEndDate] = useState("");
 
-  const [transactionType, setTransactionType] = useState("");
+  const [transactionType, setTransactionType] = useState("ALL");
 
   const [report, setReport] = useState(null);
 
@@ -71,7 +75,6 @@ export default function ReportsPage() {
   const [searching, setSearching] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
   const [searchTotalPages, setSearchTotalPages] = useState(0);
-  const [searchTotalCustomers, setSearchTotalCustomers] = useState(0);
 
   const searchPageSize = 10;
 
@@ -82,7 +85,6 @@ export default function ReportsPage() {
       setCustomerResults([]);
       setSearchPage(1);
       setSearchTotalPages(0);
-      setSearchTotalCustomers(0);
       setError("");
       return;
     }
@@ -100,7 +102,6 @@ export default function ReportsPage() {
       setCustomerResults(response.items || []);
       setSearchPage(response.page || requestedPage);
       setSearchTotalPages(response.total_pages || 0);
-      setSearchTotalCustomers(response.total || 0);
     } catch (requestError) {
       const message =
         requestError.response?.data?.detail || "Unable to search customers.";
@@ -154,7 +155,7 @@ export default function ReportsPage() {
       setStartDate("");
       setEndDate("");
 
-      setTransactionType("");
+      setTransactionType("ALL");
       setReport(null);
     } catch (requestError) {
       const message =
@@ -181,7 +182,7 @@ export default function ReportsPage() {
     setStartDate("");
     setEndDate("");
 
-    setTransactionType("");
+    setTransactionType("ALL");
 
     setReport(null);
     setError("");
@@ -406,7 +407,6 @@ export default function ReportsPage() {
                 setCustomerResults([]);
                 setSearchPage(1);
                 setSearchTotalPages(0);
-                setSearchTotalCustomers(0);
                 setError("");
               }}
             />
@@ -644,7 +644,7 @@ export default function ReportsPage() {
                 name="transaction_type"
                 label="Transaction Type"
                 value={transactionType}
-                placeholder="All transaction types"
+                placeholder="Select transaction type"
                 options={transactionTypeOptions}
                 onChange={(event) => {
                   setTransactionType(event.target.value);

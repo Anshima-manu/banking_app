@@ -45,7 +45,7 @@ const navigationItems = [
 
 export default function Sidebar() {
   const navigate = useNavigate();
-  const { admin, logout } = useAuth();
+  const { logout } = useAuth();
 
 
   function handleLogout() {

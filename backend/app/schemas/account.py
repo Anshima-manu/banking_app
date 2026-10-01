@@ -39,6 +39,8 @@ class LoanProfileCreate(BaseModel):
 
     repayment_start_date: date
 
+    linked_savings_account_id: int
+
 
 class AccountCreate(BaseModel):
     """Validates creation of a savings or loan account."""
@@ -121,6 +123,7 @@ class LoanProfileResponse(BaseModel):
     tenure_months: int
     outstanding_principal: Decimal
     repayment_start_date: date
+    linked_savings_account_id: int | None
 
     model_config = {
         "from_attributes": True,

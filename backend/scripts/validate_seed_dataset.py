@@ -375,6 +375,43 @@ def validate_dataset():
         if not passed:
             failures += 1
 
+        loan_profile_rows = db.execute(
+            select(LoanProfile, Account)
+            .join(
+                Account,
+                Account.account_id == LoanProfile.account_id,
+            )
+            .where(
+                LoanProfile.account_id.in_(loan_account_ids),
+            )
+        ).all()
+
+        invalid_linked_loans = 0
+
+        for loan_profile, loan_account in loan_profile_rows:
+            linked_account = db.get(
+                Account,
+                loan_profile.linked_savings_account_id,
+            )
+
+            if (
+                linked_account is None
+                or linked_account.account_type != "SAVINGS"
+                or linked_account.customer_id != loan_account.customer_id
+            ):
+                invalid_linked_loans += 1
+
+        passed = invalid_linked_loans == 0
+
+        print_result(
+            "Every Loan links to its customer's Savings account",
+            passed,
+            f"{invalid_linked_loans:,} invalid links",
+        )
+
+        if not passed:
+            failures += 1
+
         # -----------------------------------------------------
         # Transaction count per customer
         # -----------------------------------------------------

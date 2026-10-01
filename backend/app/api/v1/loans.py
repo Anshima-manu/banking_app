@@ -10,10 +10,27 @@ from app.models.account import Account
 from app.models.admin import Admin
 from app.models.loan import LoanInstallment
 from app.schemas.loan import LoanInstallmentResponse, LoanPaymentRequest
-from app.services.loan_service import pay_loan_installment, update_overdue_installments
+from app.services.loan_service import (
+    pay_loan_installment,
+    process_due_installments,
+    update_overdue_installments,
+)
 
 
 router = APIRouter()
+
+
+@router.post("/loans/process-due-installments")
+def process_due_installments_route(
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """Auto-debit due installments and freeze loans with three overdues."""
+
+    return process_due_installments(
+        db=db,
+        admin_id=current_admin.admin_id,
+    )
 
 
 @router.get(

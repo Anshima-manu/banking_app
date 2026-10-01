@@ -1,11 +1,12 @@
 """Generate deterministic synthetic data for Pennywise.
 
 Default validation dataset:
-    100 customers
+    100,000 customers
     1 address per customer
     1 Savings account per customer
     1 Loan account per customer
-    30 transactions per customer
+    30 transactions per customer: 20 regular Savings transactions,
+    5 automatic EMI withdrawals, and 5 Loan repayment transactions.
 
 The script DOES NOT delete existing data.
 """
@@ -253,7 +254,7 @@ def unique_reference(
     """Build a deterministic unique transaction reference."""
 
     return (
-        f"SEED-TXN-{transaction_id:020d}"
+        f"TXN-{transaction_id:020d}"
     )
 
 
@@ -310,8 +311,8 @@ def build_savings_transactions(
 
             amount = money(
                 rng.randint(
-                    20000,
-                    80000,
+                    1000000,
+                    1500000,
                 )
             )
 
@@ -677,6 +678,57 @@ def build_loan_transactions(
     )
 
 
+def build_emi_debit_transactions(
+    savings_account_id: int,
+    transaction_id_start: int,
+    performed_by: int,
+    installment_rows: list[dict],
+    savings_balance: Decimal,
+):
+    """Debit the linked Savings account for each seeded paid installment."""
+
+    transactions = []
+    transaction_id = transaction_id_start
+    balance = savings_balance
+
+    paid_rows = [
+        row
+        for row in installment_rows
+        if row["installment_status"] == "PAID"
+    ]
+
+    for row in paid_rows:
+        amount = row["amount_due"]
+        balance_before = balance
+        balance = money(balance - amount)
+
+        if balance < Decimal("5000.00"):
+            raise RuntimeError(
+                "Seeded savings balance cannot cover all linked EMI debits."
+            )
+
+        transactions.append(
+            {
+                "transaction_id": transaction_id,
+                "account_id": savings_account_id,
+                "performed_by": performed_by,
+                "transaction_type": "WITHDRAWAL",
+                "amount": amount,
+                "balance_before": balance_before,
+                "balance_after": balance,
+                "reference_number": unique_reference(transaction_id),
+                "description": (
+                    "Auto debit for loan installment "
+                    f"{row['installment_number']}"
+                ),
+                "transaction_time": row["paid_at"],
+            }
+        )
+        transaction_id += 1
+
+    return transactions, balance, transaction_id
+
+
 def insert_batch(
     db,
     customer_rows,
@@ -1009,9 +1061,9 @@ def seed_dataset(
         installment_rows = []
         transaction_rows = []
 
-        savings_transaction_count = (
-            transactions_per_customer
-            - 5
+        savings_transaction_count = max(
+            transactions_per_customer - 10,
+            0,
         )
 
         loan_transaction_count = 5
@@ -1222,20 +1274,6 @@ def seed_dataset(
                 savings_transactions
             )
 
-            savings_status = rng.choices(
-                [
-                    "ACTIVE",
-                    "FROZEN",
-                    "CLOSED",
-                ],
-                weights=[
-                    94,
-                    4,
-                    2,
-                ],
-                k=1,
-            )[0]
-
             account_rows.append(
                 {
                     "account_id":
@@ -1253,7 +1291,7 @@ def seed_dataset(
                         "SAVINGS",
 
                     "account_status":
-                        savings_status,
+                        "ACTIVE",
 
                     "current_balance":
                         savings_balance,
@@ -1266,18 +1304,7 @@ def seed_dataset(
                         ),
 
                     "closed_at":
-                        (
-                            date_to_utc_datetime(
-                                today
-                                - timedelta(
-                                    days=5
-                                ),
-                                hour=9,
-                            )
-                            if savings_status
-                            == "CLOSED"
-                            else None
-                        ),
+                        None,
                 }
             )
 
@@ -1424,6 +1451,20 @@ def seed_dataset(
                 loan_transactions
             )
 
+            emi_debit_transactions, savings_balance, transaction_id = (
+                build_emi_debit_transactions(
+                    savings_account_id=savings_account_id,
+                    transaction_id_start=transaction_id,
+                    performed_by=admin_id,
+                    installment_rows=new_installments,
+                    savings_balance=savings_balance,
+                )
+            )
+
+            transaction_rows.extend(
+                emi_debit_transactions
+            )
+
             account_rows.append(
                 {
                     "account_id":
@@ -1479,6 +1520,9 @@ def seed_dataset(
 
                     "repayment_start_date":
                         repayment_start_date,
+
+                    "linked_savings_account_id":
+                        savings_account_id,
                 }
             )
 
@@ -1580,7 +1624,7 @@ def parse_args():
     parser.add_argument(
         "--customers",
         type=int,
-        default=100,
+        default=100000,
         help="Number of customers to create.",
     )
 

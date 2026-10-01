@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
 
     frontend_url: str = "http://localhost:5173"
+    system_admin_id: int | None = None
 
     model_config = SettingsConfigDict(
         env_file = ".env",

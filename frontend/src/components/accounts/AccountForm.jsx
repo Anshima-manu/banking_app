@@ -27,11 +27,13 @@ const initialFormData = {
   principal_amount: "",
   tenure_months: "",
   repayment_start_date: "",
+  linked_savings_account_id: "",
 };
 
 
 export default function AccountForm({
   loading = false,
+  customerAccounts = [],
   onSubmit,
   onCancel,
 }) {
@@ -40,6 +42,17 @@ export default function AccountForm({
   );
 
   const [error, setError] = useState("");
+
+  const savingsAccountOptions = customerAccounts
+    .filter(
+      (account) =>
+        account.account_type === "SAVINGS" &&
+        account.account_status === "ACTIVE",
+    )
+    .map((account) => ({
+      value: String(account.account_id),
+      label: `Savings ${account.account_number} (${account.current_balance})`,
+    }));
 
 
   function handleChange(event) {
@@ -103,10 +116,20 @@ export default function AccountForm({
 
     if (formData.account_type === "LOAN") {
       if (
+        savingsAccountOptions.length === 0
+      ) {
+        setError(
+          "Create an active savings account for this customer first.",
+        );
+        return;
+      }
+
+      if (
         !formData.principal_amount ||
         !formData.interest_rate ||
         !formData.tenure_months ||
-        !formData.repayment_start_date
+        !formData.repayment_start_date ||
+        !formData.linked_savings_account_id
       ) {
         setError(
           "Complete all Loan account fields."
@@ -123,6 +146,9 @@ export default function AccountForm({
           interest_rate: formData.interest_rate,
           tenure_months: Number(formData.tenure_months),
           repayment_start_date: formData.repayment_start_date,
+          linked_savings_account_id: Number(
+            formData.linked_savings_account_id,
+          ),
         },
       };
     }
@@ -265,6 +291,30 @@ export default function AccountForm({
             required
             onChange={handleChange}
           />
+
+          <Select
+            id="linked_savings_account_id"
+            name="linked_savings_account_id"
+            label="Repayment Savings Account"
+            value={formData.linked_savings_account_id}
+            placeholder={
+              savingsAccountOptions.length > 0
+                ? "Select savings account"
+                : "Create a savings account first"
+            }
+            options={savingsAccountOptions}
+            required
+            disabled={savingsAccountOptions.length === 0}
+            onChange={handleChange}
+            className="sm:col-span-2"
+          />
+
+          {savingsAccountOptions.length === 0 && (
+            <p className="sm:col-span-2 -mt-3 text-sm text-amber-700">
+              Create an active savings account for this customer before opening
+              a loan account.
+            </p>
+          )}
         </div>
       )}
 

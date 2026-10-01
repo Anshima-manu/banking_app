@@ -68,8 +68,8 @@ export default function TransactionForm({
 
   const actionLabel =
     isDeposit
-      ? "Deposit Funds"
-      : "Withdraw Funds";
+      ? "Deposit"
+      : "Withdraw";
 
 
   return (

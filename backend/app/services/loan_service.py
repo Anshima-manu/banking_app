@@ -5,11 +5,11 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.enums import AccountStatus, AccountType, InstallmentStatus, TransactionType
-from app.models.account import Account, LoanProfile
+from app.models.account import Account, LoanProfile, SavingsProfile
 from app.models.loan import LoanInstallment
 from app.models.transaction import AccountTransaction
 
@@ -288,6 +288,36 @@ def pay_loan_installment(
                 detail="Loan profile not found.",
             )
 
+        savings_account = db.execute(
+            select(Account)
+            .where(
+                Account.account_id
+                == loan_profile.linked_savings_account_id,
+            )
+            .with_for_update()
+        ).scalar_one_or_none()
+
+        if savings_account is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This loan has no linked savings account.",
+            )
+
+        savings_profile = db.get(
+            SavingsProfile,
+            savings_account.account_id,
+        )
+
+        if (
+            savings_account.account_type != AccountType.SAVINGS.value
+            or savings_account.account_status != AccountStatus.ACTIVE.value
+            or savings_profile is None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="The linked savings account is not available.",
+            )
+
         installment = db.execute(
             select(LoanInstallment)
             .where(
@@ -340,6 +370,14 @@ def pay_loan_installment(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Payment exceeds the remaining installment amount.",
+            )
+
+        savings_balance_after = savings_account.current_balance - amount
+
+        if savings_balance_after < savings_profile.minimum_balance:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Insufficient linked savings balance for this payment.",
             )
 
         amount_paid_before = installment.amount_paid
@@ -402,6 +440,23 @@ def pay_loan_installment(
         )
 
         installment.amount_paid = amount_paid_after
+
+        savings_balance_before = savings_account.current_balance
+        savings_account.current_balance = savings_balance_after
+
+        db.add(AccountTransaction(
+            account_id=savings_account.account_id,
+            performed_by=admin_id,
+            transaction_type=TransactionType.WITHDRAWAL.value,
+            amount=amount,
+            balance_before=savings_balance_before,
+            balance_after=savings_balance_after,
+            reference_number=f"TXN-{uuid4().hex[:16].upper()}",
+            description=(
+                f"Auto debit for loan installment "
+                f"{installment.installment_number}"
+            ),
+        ))
 
         if amount_paid_after == installment.amount_due:
             installment.installment_status = (
@@ -514,3 +569,163 @@ def update_overdue_installments(
 
     if installments:
         db.commit()
+
+
+def process_due_installments(
+    db: Session,
+    admin_id: int,
+    as_of: date | None = None,
+) -> dict:
+    """Auto-debit due installments and freeze loans after three overdues."""
+
+    processing_date = as_of or date.today()
+    processed = 0
+    overdue = 0
+    frozen = 0
+
+    due_installments = db.execute(
+        select(LoanInstallment)
+        .where(
+            LoanInstallment.due_date <= processing_date,
+            LoanInstallment.installment_status.in_(
+                [
+                    InstallmentStatus.PENDING.value,
+                    InstallmentStatus.PARTIAL.value,
+                ]
+            ),
+        )
+        .order_by(LoanInstallment.due_date.asc())
+        .with_for_update()
+    ).scalars().all()
+
+    for installment in due_installments:
+        loan_account = db.execute(
+            select(Account)
+            .where(Account.account_id == installment.account_id)
+            .with_for_update()
+        ).scalar_one()
+
+        loan_profile = db.execute(
+            select(LoanProfile)
+            .where(LoanProfile.account_id == loan_account.account_id)
+            .with_for_update()
+        ).scalar_one()
+
+        savings_account = db.execute(
+            select(Account)
+            .where(
+                Account.account_id
+                == loan_profile.linked_savings_account_id,
+            )
+            .with_for_update()
+        ).scalar_one_or_none()
+
+        savings_profile = (
+            db.get(SavingsProfile, savings_account.account_id)
+            if savings_account is not None
+            else None
+        )
+
+        remaining_amount = (
+            installment.amount_due - installment.amount_paid
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        can_debit = (
+            savings_account is not None
+            and savings_profile is not None
+            and savings_account.account_type == AccountType.SAVINGS.value
+            and savings_account.account_status == AccountStatus.ACTIVE.value
+            and savings_account.current_balance - remaining_amount
+            >= savings_profile.minimum_balance
+        )
+
+        if not can_debit or loan_account.account_status != AccountStatus.ACTIVE.value:
+            installment.installment_status = InstallmentStatus.OVERDUE.value
+            overdue += 1
+        else:
+            balance_before = savings_account.current_balance
+            balance_after = balance_before - remaining_amount
+            savings_account.current_balance = balance_after
+            installment.amount_paid += remaining_amount
+            installment.installment_status = InstallmentStatus.PAID.value
+            installment.paid_at = datetime.now(timezone.utc)
+
+            db.add(AccountTransaction(
+                account_id=savings_account.account_id,
+                performed_by=admin_id,
+                transaction_type=TransactionType.WITHDRAWAL.value,
+                amount=remaining_amount,
+                balance_before=balance_before,
+                balance_after=balance_after,
+                reference_number=f"TXN-{uuid4().hex[:16].upper()}",
+                description=(
+                    f"Auto debit for loan installment "
+                    f"{installment.installment_number}"
+                ),
+            ))
+            db.add(AccountTransaction(
+                account_id=loan_account.account_id,
+                performed_by=admin_id,
+                transaction_type=TransactionType.LOAN_REPAYMENT.value,
+                amount=remaining_amount,
+                balance_before=loan_account.current_balance,
+                balance_after=loan_account.current_balance,
+                reference_number=f"TXN-{uuid4().hex[:16].upper()}",
+                description=(
+                    f"Auto-paid loan installment "
+                    f"{installment.installment_number}"
+                ),
+            ))
+
+            principal_component = (
+                installment.principal_due
+                * remaining_amount
+                / installment.amount_due
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            loan_profile.outstanding_principal = max(
+                Decimal("0.00"),
+                loan_profile.outstanding_principal - principal_component,
+            )
+            processed += 1
+
+        overdue_count = db.scalar(
+            select(func.count())
+            .select_from(LoanInstallment)
+            .where(
+                LoanInstallment.account_id == loan_account.account_id,
+                LoanInstallment.installment_status
+                == InstallmentStatus.OVERDUE.value,
+            )
+        ) or 0
+
+        if overdue_count >= 3 and loan_account.account_status == AccountStatus.ACTIVE.value:
+            loan_account.account_status = AccountStatus.FROZEN.value
+            frozen += 1
+
+    overdue_loans = db.execute(
+        select(Account, func.count(LoanInstallment.installment_id))
+        .join(
+            LoanInstallment,
+            LoanInstallment.account_id == Account.account_id,
+        )
+        .where(
+            Account.account_type == AccountType.LOAN.value,
+            Account.account_status == AccountStatus.ACTIVE.value,
+            LoanInstallment.installment_status
+            == InstallmentStatus.OVERDUE.value,
+        )
+        .group_by(Account.account_id)
+        .having(func.count(LoanInstallment.installment_id) >= 3)
+    ).all()
+
+    for loan_account, _overdue_count in overdue_loans:
+        loan_account.account_status = AccountStatus.FROZEN.value
+        frozen += 1
+
+    db.commit()
+
+    return {
+        "processed": processed,
+        "overdue": overdue,
+        "frozen": frozen,
+    }

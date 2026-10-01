@@ -15,7 +15,6 @@ import EmptyState from "../components/ui/EmptyState";
 import ErrorMessage from "../components/ui/ErrorMessage";
 import LoadingSpinner from "../components/ui/LoadingSpinner";
 import Modal from "../components/ui/Modal";
-import PageHeader from "../components/ui/PageHeader";
 import SearchInput from "../components/ui/SearchInput";
 
 import { formatDate } from "../utils/formatters";

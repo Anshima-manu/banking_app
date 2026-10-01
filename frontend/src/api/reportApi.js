@@ -1,28 +1,22 @@
 import client from "./client";
 
-
 export async function getAccountReport(
   accountId,
   {
     startDate,
     endDate,
-    transactionType = "",
-  }
+    transactionType = "ALL",
+  },
 ) {
-  const params = {
-    start_date: `${startDate}T00:00:00`,
-    end_date: `${endDate}T23:59:59`,
-  };
-
-  if (transactionType) {
-    params.transaction_type = transactionType;
-  }
+  const params = buildReportParams({
+    startDate,
+    endDate,
+    transactionType,
+  });
 
   const response = await client.get(
     `/reports/accounts/${accountId}`,
-    {
-      params,
-    }
+    { params },
   );
 
   return response.data;
@@ -43,29 +37,33 @@ export async function searchReportAccounts(search) {
 
 export async function getCustomerCombinedReport(
   customerId,
-  {
-    startDate,
-    endDate,
-    transactionType = "",
-  }
+  options,
 ) {
-  const params = {
-    start_date: `${startDate}T00:00:00`,
-    end_date: `${endDate}T23:59:59`,
-  };
-
-  if (transactionType) {
-    params.transaction_type = transactionType;
-  }
-
   const response = await client.get(
     `/reports/customers/${customerId}`,
     {
-      params,
-    }
+      params: buildReportParams(options),
+    },
   );
 
   return response.data;
+}
+
+function buildReportParams({
+  startDate,
+  endDate,
+  transactionType = "ALL",
+}) {
+  const params = {
+    start_date: startDate,
+    end_date: endDate,
+  };
+
+  if (transactionType !== "ALL") {
+    params.transaction_type = transactionType;
+  }
+
+  return params;
 }
 
 function downloadBlob(blob, filename) {
@@ -85,23 +83,19 @@ function downloadBlob(blob, filename) {
   window.URL.revokeObjectURL(url);
 }
 
-
 export async function downloadAccountReportPdf(
   accountId,
   {
     startDate,
     endDate,
     transactionType = "",
-  }
+  },
 ) {
-  const params = {
-    start_date: `${startDate}T00:00:00`,
-    end_date: `${endDate}T23:59:59`,
-  };
-
-  if (transactionType) {
-    params.transaction_type = transactionType;
-  }
+  const params = buildReportParams({
+    startDate,
+    endDate,
+    transactionType,
+  });
 
   const response = await client.get(
     `/reports/accounts/${accountId}/pdf`,
@@ -114,12 +108,8 @@ export async function downloadAccountReportPdf(
   const filename =
     `account_report_${accountId}_${startDate}_${endDate}.pdf`;
 
-  downloadBlob(
-    response.data,
-    filename
-  );
+  downloadBlob(response.data, filename);
 }
-
 
 export async function downloadCustomerReportPdf(
   customerId,
@@ -127,16 +117,13 @@ export async function downloadCustomerReportPdf(
     startDate,
     endDate,
     transactionType = "",
-  }
+  },
 ) {
-  const params = {
-    start_date: `${startDate}T00:00:00`,
-    end_date: `${endDate}T23:59:59`,
-  };
-
-  if (transactionType) {
-    params.transaction_type = transactionType;
-  }
+  const params = buildReportParams({
+    startDate,
+    endDate,
+    transactionType,
+  });
 
   const response = await client.get(
     `/reports/customers/${customerId}/pdf`,
@@ -149,8 +136,5 @@ export async function downloadCustomerReportPdf(
   const filename =
     `customer_report_${customerId}_${startDate}_${endDate}.pdf`;
 
-  downloadBlob(
-    response.data,
-    filename
-  );
+  downloadBlob(response.data, filename);
 }

@@ -38,7 +38,7 @@ export function AuthProvider({ children }) {
     try {
       const currentAdmin = await getCurrentAdmin();
       setAdmin(currentAdmin);
-    } catch (error) {
+    } catch {
       localStorage.removeItem("access_token");
       setAdmin(null);
     } finally {

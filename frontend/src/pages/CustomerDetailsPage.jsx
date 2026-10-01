@@ -19,7 +19,6 @@ import {
   getCustomerAddresses,
   updateCustomer,
   updateCustomerAddress,
-  getCustomerTransactions,
 } from "../api/customerApi";
 
 import { createAccount, getCustomerAccounts } from "../api/accountApi";
@@ -41,7 +40,6 @@ import StatusBadge from "../components/ui/StatusBadge";
 import {
   formatCurrency,
   formatDate,
-  maskAccountNumber,
 } from "../utils/formatters";
 
 export default function CustomerDetailsPage() {
@@ -574,6 +572,7 @@ export default function CustomerDetailsPage() {
       >
         <AccountForm
           loading={accountSaving}
+          customerAccounts={accounts}
           onSubmit={handleCreateAccount}
           onCancel={() => setShowAccountModal(false)}
         />

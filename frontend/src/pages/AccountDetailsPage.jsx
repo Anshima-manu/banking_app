@@ -44,7 +44,6 @@ import { accountGradientStyles } from "../utils/theme";
 import {
   formatCurrency,
   formatDate,
-  maskAccountNumber,
 } from "../utils/formatters";
 
 export default function AccountDetailsPage() {
